@@ -23,7 +23,7 @@ def secrecy_rate(w,q):
     Q = np.diag(q)
     ue_rate = np.log2(1 + (abs((h_IU @ Q @ H_AI + h_AU) @ w)/noise_power)**2)
     eve_rate = np.log2(1 + (abs((h_IE @ Q @ H_AI + h_AE) @ w)/noise_power)**2)
-    return ue_rate - eve_rate #if ue_rate > eve_rate else 0 # array shape (1,)
+    return (ue_rate - eve_rate)[0][0] #if ue_rate > eve_rate else 0 # array shape (1,)
 
 # matrices A and B (9),(8)
 def A(q):
@@ -75,8 +75,7 @@ def problem_22(w,q):
 
 
      #E = [np.zeros((i,i)) for i in range(1,N+2)] # (a 3 dimentional matrix (i,j,n)) n : {1,26}
-    E_n = np.zeros((N+1,N+1)) # 26
-    E = np.stack([E_n] * N+1) 
+    E = np.zeros((N+1,N+1,N+1)) # 26
     for i in range(N+1):
         E[i][i][i] = 1
     #  s[:-1].T.conjugate() @ E[24] @ s[:-1] verifies == 1 (n=25)
@@ -125,7 +124,8 @@ def problem_22(w,q):
     problem = cp.Problem(cp.Maximize(f), constraints)
 
     ## Solve problem
-    res = problem.slove(solver='SCS')
+    res = problem.solve(solver='SCS')
+    print(res)
 
     # Optimized values of X and µ
     X_ = (Z_r + 1j * Z_i).value
@@ -162,6 +162,7 @@ def sgr(S):
 
 
 if __name__ == '__main__' :
+    print("Program starts")
 
     h_AI_H = np.array([H_AI[0]]).T.conjugate() #0 or any row of H_AI
 
@@ -169,22 +170,40 @@ if __name__ == '__main__' :
     w_0 = h_AI_H #h_AI^H Transpose Conjugate # Mx1
     q_0 = np.ones(N) # Nx1
     r_0 = secrecy_rate(w_0,q_0) #objective value
+    print("w_0 :",w_0)
+    print("q_0 :",q_0)
+    print("r_0 :",r_0)
 
     # to keep track of all changes(hoping we don't surpass 100 iterations)
-    w = []*100; w.append(w_0)
-    q = []*100; q.append(q_0)
-    r = []*100; r.append(r_0)
+    w = [0]*100; w[k] = w_0
+    q = [0]*100; q[k] = q_0
+    r = [0]*100; r[k] = r_0
 
     # Transform this into repeat-until 
-    while (r[k] - r[k-1])/r[k] >= epsilon :
+    while k < 100 :
         k = k + 1
+
+        print("q[k-1] : ",q[k-1],"\nw[k-1] : ",w[k-1])
         # With q[k-1] : find normalized eigenvector corresponding to largest eigen value (µ_max)
         µ_max = U_max(A(q[k-1]),B(q[k-1])) 
+
+        print(k,". µ_max : ",µ_max)
+        
         w[k] = np.sqrt(transmit_power)*µ_max
+
+        print(k,". w : ",w[k])
+
         # With w[k] : solve (problem (22)) => get(S) which it's rank(S)# 1
         S = problem_22(w[k],q[k-1])
         #             apply gussian randomisation over solution to obtain approx. q[k]
         q[k] = sgr(S)
         r[k] = secrecy_rate(w[k],q[k])
-        print(k+". Secrecy : "+r[k])
+        print(k,". q : ",q[k])
+        print(k,". Secrecy : ",r[k])
+
+        if (r[k] - r[k-1])/r[k] <= epsilon :
+            print("finished")
+            break
+
+# add try-except bloc to catch errors
 
