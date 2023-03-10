@@ -155,7 +155,7 @@ def sgr(S):
     s_approx = np.sqrt(Sigma[0]) * Q @ VT[0]
 
     # I'm quite confused how to get the value of q ?
-    # ChatGPT told me that q = s[:-1] :))
+    # ChatGPT told me that q = s[1:] :))
     q_approx = s_approx[:-1]
 
     return q_approx
@@ -183,7 +183,7 @@ if __name__ == '__main__' :
     while k < 100 :
         k = k + 1
 
-        print("q[k-1] : ",q[k-1],"\nw[k-1] : ",w[k-1])
+        #print("q[k-1] : ",q[k-1],"\nw[k-1] : ",w[k-1])
         # With q[k-1] : find normalized eigenvector corresponding to largest eigen value (µ_max)
         µ_max = U_max(A(q[k-1]),B(q[k-1])) 
 
@@ -201,9 +201,11 @@ if __name__ == '__main__' :
         print(k,". q : ",q[k])
         print(k,". Secrecy : ",r[k])
 
-        if (r[k] - r[k-1])/r[k] <= epsilon :
+        if (r[k] - r[k-1])/r[k] <= epsilon : #usually means that the best score has been already achieved in iteration (k-1)
             print("finished")
             break
+
+print("Secrecy rate evolution: ", r)
 
 # add try-except bloc to catch errors
 
