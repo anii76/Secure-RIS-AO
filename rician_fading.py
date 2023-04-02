@@ -13,8 +13,11 @@ from scipy.linalg import sqrtm
 #https://dsp.stackexchange.com/questions/55719/channel-model-los-component-and-rician-k-factor
 
 
-def Rician_Fading_Channels(M,N,dist,pl,K):
-    path_loss = 1/(dist**pl)
+def Rician_Fading_Channels(M,N,dist,pl,zeta,K):
+    d0 = 1 
+    zeta = 10**(zeta/10)
+    path_loss = zeta*(d0/dist)**pl
+    #path_loss = 1/(dist**pl)
     #d0 = 1; path_loss = zeta + 10 * pl * np.log10(dist/d0) #should i keep this or go back to path_loss = 1/(dist**pl)
 
     mu = np.sqrt(K/((K+1))) #direct path (mean)
