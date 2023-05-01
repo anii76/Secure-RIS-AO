@@ -4,7 +4,7 @@ clc;
 K = 1; %K-factor
 zeta = -30; %dBm
 M = 4; % Num BS antennas
-N = 25; % Num RIS elements
+N = 25; % Num RIS elements : [9 25 40 64 72 88 104 120]~ 
 n = 1;
 dist_AU = sqrt((145 - 0)^2 + (0 - 0)^2);
 dist_AE = sqrt((150 - 0)^2 + (0 - 0)^2);
@@ -15,26 +15,32 @@ pl = 3;
 pl_AI = 2.2;
 r_factor = 0.95;
 
+P_t = 15; % transmit power in dBm [-5 0 5 10 15 20 25]
+
 noisepow = 10^((-80)/10); %dBm to mW
-transmit_power = 10^((20)/10);
+transmit_power = 10^((P_t)/10);%dBm to mW
 
 epsilon = 1e-03;
 
 % 1000 Channel realisations
-N_samples = 1000;
+N_samples = 10;
+sr = zeros(1,N_samples);
+
+for l=1:N_samples
 
 % Loop here through channel realizations
-h_AU = RicianFadingChannel(M,n,dist_AU,pl,zeta,K);
-h_AE = RicianFadingChannel(M,n,dist_AE,pl,zeta,K);
+h_AU = RicianFadingChannel(M,n,dist_AU,pl,zeta,K);%SpatiallyCorrelatedRician(M,n,dist_AU,pl,zeta,K,r_factor);
+h_AE = RicianFadingChannel(M,n,dist_AE,pl,zeta,K);%SpatiallyCorrelatedRician(M,n,dist_AE,pl,zeta,K,r_factor);
 H_AI = RicianFadingChannel(M,N,dist_AI,pl_AI,zeta,K);
 h_IU = RicianFadingChannel(N,n,dist_IU,pl,zeta,K);
 h_IE = RicianFadingChannel(N,n,dist_IE,pl,zeta,K);
 
 %% Algorithm
 % Initialization
-w = zeros(M,100);
-q = zeros(N,100);
-r = zeros(1,100);
+max_iter = 5;
+w = zeros(M,max_iter);
+q = zeros(N,max_iter);
+r = zeros(1,max_iter);
 
 k = 1; h_AI = H_AI(1,:);
 w(:,1) = h_AI'/norm(h_AI);
@@ -45,14 +51,14 @@ ue_rate = log2(1 + (abs((h_IU*Q*H_AI+h_AU)*w(:,1))/noisepow)^2);
 eve_rate = log2(1 + (abs((h_IE*Q*H_AI+h_AE)*w(:,1))/noisepow)^2);
 r(1) = ue_rate - eve_rate;
 
-while (true)
+while (k < max_iter)
     k = k + 1;
     % Calculating matrix A & B
     Q = diag(q(:,k-1));
     A = 1/noisepow^2 * ((h_IU*Q*H_AI+h_AU)' * (h_IU*Q*H_AI+h_AU));
     B = 1/noisepow^2 * ((h_IE*Q*H_AI+h_AE)' * (h_IE*Q*H_AI+h_AE));
 
-    % Calculating Umax
+    % Calculating Umax ----> probably issue here !
     U = (B + 1/transmit_power * eye(M))^-1 * (A + 1/transmit_power * eye(M));
     [eig_vec, eig_val] = eig(U);
     eig_vals = diag(eig_val);
@@ -61,6 +67,7 @@ while (true)
                                                                          % When I use normalize() norm(w)^2 > P_t
     % Updating w(k)
     w(:,k) = sqrt(transmit_power) * u_max;
+    w(:,k) = sqrt(transmit_power) * w(:,1); %keeping initial value as it yields reasonable results
     
     % Solving problem (22)
     h_U = (conj(h_AU)*conj(w(:,k))*w(:,k).'*h_AU.')/noisepow^2;
@@ -92,6 +99,7 @@ while (true)
     %X = u*S;
     
     % Using CVX
+    cvx_quiet(true);
     cvx_begin sdp
         variable X(N+1,N+1) hermitian semidefinite 
         variable u nonnegative
@@ -100,7 +108,8 @@ while (true)
             real(trace( G_E * X ) + u * ( h_E + 1 )) == 1
             for i=1:N+1
                 real(trace(E(:,:,i)*X)) == u
-            end
+            end 
+            X >= 0
     cvx_end
     
     S = X/u;
@@ -116,8 +125,8 @@ while (true)
 
     % Calculate secrecy rate
     Q = diag(q(:,k));
-    ue_rate = log2(1 + (abs((h_IU*Q*H_AI+h_AU)*w(:,1))/noisepow)^2);
-    eve_rate = log2(1 + (abs((h_IE*Q*H_AI+h_AE)*w(:,1))/noisepow)^2);
+    ue_rate = log2(1 + (abs((h_IU*Q*H_AI+h_AU)*w(:,k))/noisepow)^2);
+    eve_rate = log2(1 + (abs((h_IE*Q*H_AI+h_AE)*w(:,k))/noisepow)^2);
     r(k) = ue_rate - eve_rate;
 
     if (r(k) - r(k-1)/r(k) < epsilon)
@@ -125,3 +134,10 @@ while (true)
     end
 
 end
+
+sr(l) = max(r);
+end
+% all observations are wrong, I was using w(:,1) in secrecy rate
+% after fixing it, secrecy rate is outrageously high ! (ex: 0.1475    7.4035   25.4405)
+% it seems that I have multiplied all rates by 10 !
+% without RIS y = h*w
