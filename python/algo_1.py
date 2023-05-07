@@ -22,8 +22,8 @@ epsilon = 1e-3
 
 def secrecy_rate(w, q):
     Q = np.diag(q)
-    ue_rate = np.log2(1 + (abs((h_IU @ Q @ h_AI + h_AU) @ w)/noise_power)**2)
-    eve_rate = np.log2(1 + (abs((h_IE @ Q @ h_AI + h_AE) @ w)/noise_power)**2)
+    ue_rate = np.log2(1 + (abs((h_IU @ Q @ h_AI + h_AU) @ w))**2/noise_power)
+    eve_rate = np.log2(1 + (abs((h_IE @ Q @ h_AI + h_AE) @ w))**2/noise_power)
     # if ue_rate > eve_rate else 0 # array shape (1,)
     return (ue_rate - eve_rate)[0][0]
 
